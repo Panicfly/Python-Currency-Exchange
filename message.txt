@@ -1,0 +1,123 @@
+from dataclasses import dataclass
+
+
+@dataclass
+class Rate:
+    eur: float
+    aud: float
+    gbp: float
+
+
+class Converter:
+    data = {"DATE": [], "RATE": []}
+    selected_rate = Rate(0, 0, 0)
+    rates = {"min": Rate(0, 0, 0), "avg": Rate(0, 0, 0), "max": Rate(0, 0, 0)}
+
+    def __init__(self):
+        self.menu()
+
+    def menu(self):
+        actions = [
+            ["LOAD currency exchange rate data from a file", self.load],
+            ["USE AVERAGE exchange rate", self.avg_exchange],
+            ["USE HIGHEST exchange rate", self.max_exchange],
+            ["USE LOWEST exchange rate", self.min_exchange],
+            ["CONVERT USD TO EUR", lambda: self.convert_usd("EUR")],
+            ["CONVERT USD TO AUD", lambda: self.convert_usd("AUD")],
+            ["CONVERT USD TO GBP", lambda: self.convert_usd("GBP")],
+        ]
+
+        while True:
+            print("ACME(tm) US DOLLAR EXCHANGE RATE APP")
+            for i in range(len(actions)):
+                print("{0}) {1}".format(i + 1, actions[i][0]))
+            print("0) QUIT program")
+
+            try:
+                option = int(input("Choose what to do: "))
+                if option == 0:
+                    break
+                elif option > 0:
+                    actions[option - 1][1]()
+            except ValueError:
+                continue
+            except KeyboardInterrupt:
+                break
+            print("")  # empty line after commands
+
+    def load(self):
+        self.reset()
+        try:
+            filename = input("Give name of the data file: ")
+
+            with open(filename, "r") as file:
+                next(file)  # skip header
+                for line in file:
+                    line = line.strip().split(';')
+                    self.data["DATE"].append(line[0])
+                    try:
+                        rate = Rate(float(line[1]), float(line[2]), float(line[3]))
+                        self.check_min_max(rate)
+
+                        self.data["RATE"].append(rate)
+                    except ValueError:
+                        self.data["RATE"].append(Rate(0, 0, 0))  # fill with dummy data
+
+            self.calc_avg_rate()
+            self.selected_rate = self.rates["avg"]  # average rate is the default
+            print("Data loaded successfully!")
+
+            date = self.data["DATE"]
+            print("Currency exchange data is from {} days between {} and {}.".format(len(date), date[0],
+                                                                                     date[len(date) - 1]))
+
+        except OSError:
+            print("Failed to load data!")
+            print("Please check the file location.")
+
+    def calc_avg_rate(self):
+        total_eur, total_aud, total_gbp = 0, 0, 0
+        for entry in self.data["RATE"]:
+            total_eur += entry.eur
+            total_aud += entry.aud
+            total_gbp += entry.gbp
+        # filtering out non valid entries
+        size = len(list(filter(lambda x: x != Rate(0, 0, 0), self.data["RATE"])))
+        self.rates["avg"] = Rate(total_eur / size, total_aud / size, total_gbp / size)
+
+    def check_min_max(self, rate):  # 9,2,3, 5,4,3
+        # min
+        if self.rates["min"].eur == 0 or rate.eur < self.rates["min"].eur:
+            self.rates["min"].eur = rate.eur
+        if self.rates["min"].aud == 0 or rate.aud < self.rates["min"].aud:
+            self.rates["min"].aud = rate.aud
+        if self.rates["min"].gbp == 0 or rate.gbp < self.rates["min"].gbp:
+            self.rates["min"].gbp = rate.gbp
+        # max
+        if self.rates["max"].eur == 0 or rate.eur > self.rates["max"].eur:
+            self.rates["max"].eur = rate.eur
+        if self.rates["max"].aud == 0 or rate.aud > self.rates["max"].aud:
+            self.rates["max"].aud = rate.aud
+        if self.rates["max"].gbp == 0 or rate.gbp > self.rates["max"].gbp:
+            self.rates["max"].gbp = rate.gbp
+
+    def convert_usd(self, currency):
+        try:
+            val = float(input("Give USD to convert: "))
+        except ValueError:
+            print("Invalid input.")
+            return
+
+        # currency selection
+        rate = 0
+        if currency == "EUR":
+            rate = self.selected_rate.eur
+        elif currency == "GBP":
+            rate = self.selected_rate.gbp
+        elif currency == "AUD":
+            rate = self.selected_rate.aud
+
+        print("{} USD in {} is {} {}".format(val, currency, round(val * rate, 2), currency))
+
+    def min_exchange(self):
+        self.selected_rate = self
